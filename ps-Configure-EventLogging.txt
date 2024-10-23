@@ -1,0 +1,90 @@
+﻿'''
+.DESCRIPTION
+Leila Nelson 10/22/2024
+ISS 212 - CS Scripting - PowerShell Script: ps-Configure-EventLogging.ps1
+Citations: Jenn Moody (BrightSpace)
+
+.PURPOSE
+PowerShell script that enables PowerShell Logging.
+
+.USAGE
+run script from file with command or from terminal. | .\ps-Configure-EventLogging.ps1
+'''
+
+# identifies and stores the path to the folder and file path
+$logFolderPath = "C:\Users\nelso\Desktop\Fall2024\iss212\Git Repo"
+$logFilePath = Join-Path -Path $logFolderPath -ChildPath "PowerShellEvents.log"
+
+# this section will then output those stored values of the paths
+Write-Host "Log folder path: $logFolderPath"
+Write-Host "Log file path: $logFilePath"
+
+# creates an if statement to determine if the log file exists in the foler, if not it will create it.
+#If there is an error it will also notify the user
+if (-not (Test-Path -Path $logFolderPath -PathType Container)) {
+    Write-Host "Logs folder does not exist. Creating..."
+    try {
+        New-Item -Path $logFolderPath -ItemType Directory
+        Write-Host "Logs folder created successfully."
+    } catch {
+        Write-Host "Error creating Logs folder: $_"
+        exit
+    }
+} else {
+    Write-Host "Logs folder already exists."
+}
+
+# sets and stores the the regpath to the registry path. Then determines if the regisrty exists or not, and outputs
+#if there was an error creating it or if the creation was successful.
+$regPath = "HKLM:\SOFTWARE\Microsoft\PowerShell\ScriptBlockLogging"
+Write-Host "Registry path: $regPath"
+if (-not (Test-Path -Path $regPath)) {
+    Write-Host "Registry key does not exist. Creating..."
+    try {
+        New-Item -Path $regPath -Force
+        Write-Host "Registry key created successfully."
+    } catch {
+        Write-Host "Error creating registry key: $_"
+        exit
+    }
+} else {
+    Write-Host "Registry key already exists."
+}
+
+# trys to set registry values to enable script block logging, and outputs if any errors occur.
+try {
+    Set-ItemProperty -Path $regPath -Name "EnableScriptBlockLogging" -Value 1 -ErrorAction Stop
+    Set-ItemProperty -Path $regPath -Name "LogPath" -Value $logFilePath -ErrorAction Stop
+    Write-Host "PowerShell event logging has been configured. Events will be logged to $logFilePath."
+} catch {
+    Write-Host "Error setting registry values: $_"
+}
+
+# creates a function for log-events, that will output the events with a timestamp to the log file.
+function Log-Event {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$Message
+    )
+
+    # # comment here
+    $Timestamp = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    $MessageWithTimestamp = "$Timestamp - $Message"
+
+    # # comment here
+    $MessageWithTimestamp | Out-File -FilePath $logFilePath -Append
+}
+
+# executes the function and lets the user know
+Log-Event "Script started"
+
+# retrieves data from and logs it if no errors occur. Then telling the user to check log file for details afterwards.
+try {
+    $systemInfo = Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object Caption, Version, OSArchitecture
+    Log-Event "System information:"
+    Log-Event $systemInfo | Out-String
+} catch {
+    Log-Event "Error retrieving system information: $_"
+}
+
+Write-Host "Script execution complete. Please check the log file for details: $logFilePath"
